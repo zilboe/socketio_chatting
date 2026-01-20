@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO 通信客户端</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #166088;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --gray-color: #6c757d;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-size: 1.5rem;
+        }
+        
+        .card-title i {
+            margin-right: 10px;
+            font-size: 1.8rem;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .status-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: var(--danger-color);
+        }
+        
+        .status-indicator.connected {
+            background-color: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+        
+        .connection-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        button i {
+            margin-right: 8px;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: var(--dark-color);
+        }
+        
+        .btn-warning:hover {
+            background-color: #e0a800;
+            transform: translateY(-2px);
+        }
+        
+        .messages-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            background-color: #f9f9f9;
+            margin-bottom: 20px;
+        }
+        
+        .message {
+            padding: 12px 15px;
+            margin-bottom: 12px;
+            border-radius: var(--border-radius);
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .message.sent {
+            border-left-color: var(--success-color);
+            background-color: #f0f9f0;
+        }
+        
+        .message.received {
+            border-left-color: var(--primary-color);
+            background-color: #f0f5ff;
+        }
+        
+        .message.event {
+            border-left-color: var(--warning-color);
+            background-color: #fff9e6;
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: var(--gray-color);
+        }
+        
+        .message-type {
+            font-weight: 600;
+        }
+        
+        .message-content {
+            word-wrap: break-word;
+        }
+        
+        .api-section {
+            margin-top: 30px;
+        }
+        
+        .api-endpoint {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-bottom: 15px;
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .api-title {
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+        
+        .api-description {
+            color: var(--gray-color);
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        
+        .api-params {
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        
+        .api-params strong {
+            color: var(--dark-color);
+        }
+        
+        .code-block {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+        
+        .api-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--gray-color);
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: var(--gray-color);
+            font-size: 0.9rem;
+        }
+        
+        .clear-btn {
+            background-color: var(--gray-color);
+            color: white;
+            margin-top: 10px;
+        }
+        
+        .clear-btn:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-bolt"></i> Socket.IO 通信客户端</h1>
+            <p class="subtitle">与后端进行实时双向通信的Web界面</p>
+        </header>
+        
+        <div class="main-content">
+            <!-- 左侧：连接控制和消息发送 -->
+            <div>
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-plug"></i> 连接控制
+                    </div>
+                    
+                    <div class="connection-status">
+                        <div class="status-indicator" id="statusIndicator"></div>
+                        <span id="statusText">未连接</span>
+                    </div>
+                    
+                    <div class="connection-controls">
+                        <div class="input-group">
+                            <label for="serverUrl"><i class="fas fa-server"></i> 服务器地址</label>
+                            <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="输入Socket.IO服务器地址">
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="username"><i class="fas fa-user"></i> 用户名</label>
+                            <input type="text" id="username" value="前端客户端" placeholder="输入用户名">
+                        </div>
+                    </div>
+                    
+                    <div class="connection-controls">
+                        <button id="connectBtn" class="btn-primary">
+                            <i class="fas fa-link"></i> 连接到服务器
+                        </button>
+                        <button id="disconnectBtn" class="btn-danger" disabled>
+                            <i class="fas fa-unlink"></i> 断开连接
+                        </button>
+                        <button id="clearBtn" class="clear-btn">
+                            <i class="fas fa-trash-alt"></i> 清空消息
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-paper-plane"></i> 发送消息
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="eventType"><i class="fas fa-bolt"></i> 事件类型</label>
+                        <select id="eventType">
+                            <option value="message">message (通用消息)</option>
+                            <option value="chatMessage">chatMessage (聊天消息)</option>
+                            <option value="notification">notification (通知)</option>
+                            <option value="dataRequest">dataRequest (请求数据)</option>
+                            <option value="customEvent">customEvent (自定义事件)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" style="margin-top: 15px;">
+                        <label for="messageContent"><i class="fas fa-comment-alt"></i> 消息内容</label>
+                        <textarea id="messageContent" rows="3" placeholder='输入消息内容，可以是JSON格式，例如: {"text": "Hello", "userId": 123}'></textarea>
+                    </div>
+                    
+                    <button id="sendBtn" class="btn-success" style="margin-top: 15px; width: 100%;" disabled>
+                        <i class="fas fa-paper-plane"></i> 发送消息
+                    </button>
+                </div>
+                
+                <!-- API测试按钮 -->
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-vial"></i> API 测试
+                    </div>
+                    <p style="margin-bottom: 15px; color: var(--gray-color);">点击以下按钮测试预定义的API消息</p>
+                    
+                    <div class="api-buttons">
+                        <button class="api-test-btn btn-warning" data-type="ping">
+                            <i class="fas fa-heartbeat"></i> Ping 测试
+                        </button>
+                        <button class="api-test-btn btn-warning" data-type="getTime">
+                            <i class="fas fa-clock"></i> 获取时间
+                        </button>
+                        <button class="api-test-btn btn-warning" data-type="auth">
+                            <i class="fas fa-key"></i> 身份验证
+                        </button>
+                        <button class="api-test-btn btn-warning" data-type="broadcast">
+                            <i class="fas fa-bullhorn"></i> 广播消息
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：消息显示和API文档 -->
+            <div>
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-exchange-alt"></i> 实时通信
+                    </div>
+                    
+                    <div class="messages-container" id="messagesContainer">
+                        <div class="message event">
+                            <div class="message-header">
+                                <span class="message-type">系统消息</span>
+                                <span>刚刚</span>
+                            </div>
+                            <div class="message-content">
+                                欢迎使用Socket.IO通信客户端！请连接到服务器开始通信。
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-value" id="sentCount">0</div>
+                            <div class="stat-label">已发送</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="receivedCount">0</div>
+                            <div class="stat-label">已接收</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="eventCount">1</div>
+                            <div class="stat-label">事件数</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card api-section">
+                    <div class="card-title">
+                        <i class="fas fa-code"></i> Socket.IO Message API 参考
+                    </div>
+                    
+                    <p style="margin-bottom: 20px; color: var(--gray-color);">
+                        后端可以通过以下API与前端进行通信。所有API都通过Socket.IO事件实现。
+                    </p>
+                    
+                    <div class="api-endpoint">
+                        <div class="api-title">1. 通用消息 (message)</div>
+                        <div class="api-description">用于发送通用文本或JSON消息到前端</div>
+                        <div class="api-params">
+                            <strong>数据格式：</strong> 字符串或JSON对象
+                        </div>
+                        <div class="code-block">
+                            // 后端发送示例<br>
+                            socket.emit('message', 'Hello, frontend!');<br><br>
+                            // 或发送JSON<br>
+                            socket.emit('message', {<br>
+                            &nbsp;&nbsp;type: 'notification',<br>
+                            &nbsp;&nbsp;content: '您有一条新消息',<br>
+                            &nbsp;&nbsp;timestamp: Date.now()<br>
+                            });
+                        </div>
+                    </div>
+                    
+                    <div class="api-endpoint">
+                        <div class="api-title">2. 聊天消息 (chatMessage)</div>
+                        <div class="api-description">专门用于聊天应用场景的消息格式</div>
+                        <div class="api-params">
+                            <strong>数据格式：</strong> JSON对象，包含 sender, content, timestamp 等字段
+                        </div>
+                        <div class="code-block">
+                            // 后端发送示例<br>
+                            socket.emit('chatMessage', {<br>
+                            &nbsp;&nbsp;sender: '后端服务',<br>
+                            &nbsp;&nbsp;content: '这是来自后端的消息',<br>
+                            &nbsp;&nbsp;timestamp: new Date().toISOString(),<br>
+                            &nbsp;&nbsp;room: 'general'<br>
+                            });
+                        </div>
+                    </div>
+                    
+                    <div class="api-endpoint">
+                        <div class="api-title">3. 系统通知 (notification)</div>
+                        <div class="api-description">用于发送系统通知、警报或状态更新</div>
+                        <div class="api-params">
+                            <strong>数据格式：</strong> JSON对象，包含 title, message, level, duration 等字段
+                        </div>
+                        <div class="code-block">
+                            // 后端发送示例<br>
+                            socket.emit('notification', {<br>
+                            &nbsp;&nbsp;title: '系统更新',<br>
+                            &nbsp;&nbsp;message: '服务器将在5分钟后重启',<br>
+                            &nbsp;&nbsp;level: 'warning', // info, success, warning, error<br>
+                            &nbsp;&nbsp;duration: 5000 // 显示时长(毫秒)<br>
+                            });
+                        </div>
+                    </div>
+                    
+                    <div class="api-endpoint">
+                        <div class="api-title">4. 数据更新 (dataUpdate)</div>
+                        <div class="api-description">当后端数据发生变化时，通知前端更新数据</div>
+                        <div class="api-params">
+                            <strong>数据格式：</strong> JSON对象，包含 type, data, timestamp 等字段
+                        </div>
+                        <div class="code-block">
+                            // 后端发送示例<br>
+                            socket.emit('dataUpdate', {<br>
+                            &nbsp;&nbsp;type: 'userList',<br>
+                            &nbsp;&nbsp;data: [{id: 1, name: '用户1'}, {id: 2, name: '用户2'}],<br>
+                            &nbsp;&nbsp;timestamp: Date.now()<br>
+                            });
+                        </div>
+                    </div>
+                    
+                    <div class="api-endpoint">
+                        <div class="api-title">5. 自定义事件 (customEvent)</div>
+                        <div class="api-description">用于自定义业务逻辑的事件通信</div>
+                        <div class="api-params">
+                            <strong>数据格式：</strong> 任意格式，根据业务需求定义
+                        </div>
+                        <div class="code-block">
+                            // 后端发送示例 - 任务完成通知<br>
+                            socket.emit('customEvent', {<br>
+                            &nbsp;&nbsp;eventName: 'taskCompleted',<br>
+                            &nbsp;&nbsp;taskId: 'task_12345',<br>
+                            &nbsp;&nbsp;result: 'success',<br>
+                            &nbsp;&nbsp;details: { elapsedTime: 1500, outputSize: 2048 }<br>
+                            });
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Socket.IO 通信客户端 &copy; 2023 | 使用 Socket.IO v4.5.4</p>
+            <p>通过事件驱动的实时双向通信，连接前后端应用</p>
+        </footer>
+    </div>
+
+    <script>
+        // 全局变量
+        let socket = null;
+        let isConnected = false;
+        let sentMessages = 0;
+        let receivedMessages = 0;
+        let eventCount = 1; // 初始系统消息
+        
+        // DOM 元素
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const serverUrlInput = document.getElementById('serverUrl');
+        const usernameInput = document.getElementById('username');
+        const eventTypeSelect = document.getElementById('eventType');
+        const messageContentTextarea = document.getElementById('messageContent');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const sentCountElement = document.getElementById('sentCount');
+        const receivedCountElement = document.getElementById('receivedCount');
+        const eventCountElement = document.getElementById('eventCount');
+        
+        // 更新状态显示
+        function updateStatus(connected) {
+            isConnected = connected;
+            
+            if (connected) {
+                statusIndicator.className = 'status-indicator connected';
+                statusText.textContent = '已连接到 ' + socket.io.uri;
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendBtn.disabled = false;
+            } else {
+                statusIndicator.className = 'status-indicator';
+                statusText.textContent = '未连接';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+        
+        // 添加消息到显示区域
+        function addMessage(type, content, isSent = false) {
+            const messageElement = document.createElement('div');
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                              now.getMinutes().toString().padStart(2, '0') + ':' + 
+                              now.getSeconds().toString().padStart(2, '0');
+            
+            let messageTypeText = '';
+            let messageClass = '';
+            
+            switch(type) {
+                case 'message':
+                    messageTypeText = '通用消息';
+                    messageClass = isSent ? 'sent' : 'received';
+                    break;
+                case 'chatMessage':
+                    messageTypeText = '聊天消息';
+                    messageClass = isSent ? 'sent' : 'received';
+                    break;
+                case 'notification':
+                    messageTypeText = '通知';
+                    messageClass = 'event';
+                    break;
+                case 'dataUpdate':
+                    messageTypeText = '数据更新';
+                    messageClass = 'event';
+                    break;
+                case 'customEvent':
+                    messageTypeText = '自定义事件';
+                    messageClass = 'event';
+                    break;
+                default:
+                    messageTypeText = '事件';
+                    messageClass = 'event';
+            }
+            
+            // 格式化内容显示
+            let contentDisplay = content;
+            if (typeof content === 'object') {
+                try {
+                    contentDisplay = JSON.stringify(content, null, 2);
+                } catch (e) {
+                    contentDisplay = String(content);
+                }
+            }
+            
+            messageElement.className = `message ${messageClass}`;
+            messageElement.innerHTML = `
+                <div class="message-header">
+                    <span class="message-type">${isSent ? '发送 → ' : '接收 ← '}${messageTypeText}</span>
+                    <span>${timeString}</span>
+                </div>
+                <div class="message-content">${contentDisplay}</div>
+            `;
+            
+            messagesContainer.appendChild(messageElement);
+            
+            // 滚动到底部
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // 更新计数器
+            if (isSent) {
+                sentMessages++;
+                sentCountElement.textContent = sentMessages;
+            } else {
+                receivedMessages++;
+                receivedCountElement.textContent = receivedMessages;
+            }
+            
+            eventCount++;
+            eventCountElement.textContent = eventCount;
+        }
+        
+        // 连接到Socket.IO服务器
+        function connectToServer() {
+            const serverUrl = serverUrlInput.value.trim();
+            const username = usernameInput.value.trim() || '前端客户端';
+            
+            if (!serverUrl) {
+                alert('请输入服务器地址');
+                return;
+            }
+            
+            try {
+                // 创建Socket.IO连接
+                socket = io(serverUrl, {
+                    transports: ['websocket', 'polling'],
+                    query: { username: username }
+                });
+                
+                // 连接成功
+                socket.on('connect', () => {
+                    updateStatus(true);
+                    addMessage('notification', `成功连接到服务器 (ID: ${socket.id})`);
+                    
+                    // 发送连接通知
+                    socket.emit('userConnected', { 
+                        username: username,
+                        timestamp: new Date().toISOString()
+                    });
+                });
+                
+                // 连接错误
+                socket.on('connect_error', (error) => {
+                    console.error('连接错误:', error);
+                    addMessage('notification', `连接错误: ${error.message}`);
+                    updateStatus(false);
+                });
+                
+                // 断开连接
+                socket.on('disconnect', (reason) => {
+                    console.log('断开连接:', reason);
+                    addMessage('notification', `与服务器断开连接: ${reason}`);
+                    updateStatus(false);
+                });
+                
+                // 监听通用消息
+                socket.on('message', (data) => {
+                    console.log('收到消息:', data);
+                    addMessage('message', data);
+                });
+                
+                // 监听聊天消息
+                socket.on('chatMessage', (data) => {
+                    console.log('收到聊天消息:', data);
+                    addMessage('chatMessage', data);
+                });
+                
+                // 监听通知
+                socket.on('notification', (data) => {
+                    console.log('收到通知:', data);
+                    addMessage('notification', data);
+                });
+                
+                // 监听数据更新
+                socket.on('dataUpdate', (data) => {
+                    console.log('收到数据更新:', data);
+                    addMessage('dataUpdate', data);
+                });
+                
+                // 监听自定义事件
+                socket.on('customEvent', (data) => {
+                    console.log('收到自定义事件:', data);
+                    addMessage('customEvent', data);
+                });
+                
+                // 监听其他可能的事件
+                socket.onAny((eventName, ...args) => {
+                    // 忽略我们已经明确处理的事件
+                    const handledEvents = ['message', 'chatMessage', 'notification', 'dataUpdate', 'customEvent'];
+                    if (!handledEvents.includes(eventName)) {
+                        console.log(`收到未处理事件 "${eventName}":`, args);
+                        addMessage('customEvent', { event: eventName, data: args.length === 1 ? args[0] : args });
+                    }
+                });
+                
+            } catch (error) {
+                console.error('连接异常:', error);
+                addMessage('notification', `连接异常: ${error.message}`);
+                updateStatus(false);
+            }
+        }
+        
+        // 断开连接
+        function disconnectFromServer() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                updateStatus(false);
+            }
+        }
+        
+        // 发送消息
+        function sendMessage() {
+            if (!socket || !isConnected) {
+                alert('请先连接到服务器');
+                return;
+            }
+            
+            const eventType = eventTypeSelect.value;
+            let messageContent = messageContentTextarea.value.trim();
+            
+            if (!messageContent) {
+                alert('请输入消息内容');
+                return;
+            }
+            
+            // 尝试解析JSON，如果失败则作为普通字符串发送
+            let dataToSend;
+            try {
+                dataToSend = JSON.parse(messageContent);
+            } catch (e) {
+                dataToSend = messageContent;
+            }
+            
+            // 添加用户名和时间戳
+            if (typeof dataToSend === 'object' && dataToSend !== null) {
+                dataToSend.sender = usernameInput.value.trim() || '前端客户端';
+                dataToSend.timestamp = new Date().toISOString();
+            }
+            
+            // 发送消息
+            socket.emit(eventType, dataToSend);
+            
+            // 添加到消息显示
+            addMessage(eventType, dataToSend, true);
+            
+            // 清空输入框
+            messageContentTextarea.value = '';
+        }
+        
+        // 清空消息
+        function clearMessages() {
+            messagesContainer.innerHTML = `
+                <div class="message event">
+                    <div class="message-header">
+                        <span class="message-type">系统消息</span>
+                        <span>刚刚</span>
+                    </div>
+                    <div class="message-content">
+                        消息已清空
+                    </div>
+                </div>
+            `;
+            
+            // 重置计数器（除了事件计数）
+            sentMessages = 0;
+            receivedMessages = 0;
+            eventCount = 1;
+            
+            sentCountElement.textContent = '0';
+            receivedCountElement.textContent = '0';
+            eventCountElement.textContent = '1';
+        }
+        
+        // 发送API测试消息
+        function sendApiTest(type) {
+            if (!socket || !isConnected) {
+                alert('请先连接到服务器');
+                return;
+            }
+            
+            let eventType, dataToSend;
+            const username = usernameInput.value.trim() || '前端客户端';
+            const timestamp = new Date().toISOString();
+            
+            switch(type) {
+                case 'ping':
+                    eventType = 'message';
+                    dataToSend = { 
+                        type: 'ping',
+                        message: 'Ping from frontend',
+                        timestamp: timestamp
+                    };
+                    break;
+                    
+                case 'getTime':
+                    eventType = 'dataRequest';
+                    dataToSend = { 
+                        request: 'getServerTime',
+                        id: 'req_' + Date.now(),
+                        timestamp: timestamp
+                    };
+                    break;
+                    
+                case 'auth':
+                    eventType = 'customEvent';
+                    dataToSend = { 
+                        eventName: 'authentication',
+                        username: username,
+                        token: 'demo_token_' + Math.random().toString(36).substring(2, 10),
+                        timestamp: timestamp
+                    };
+                    break;
+                    
+                case 'broadcast':
+                    eventType = 'chatMessage';
+                    dataToSend = { 
+                        sender: username,
+                        content: '这是一条广播测试消息',
+                        room: 'broadcast',
+                        timestamp: timestamp
+                    };
+                    break;
+                    
+                default:
+                    eventType = 'message';
+                    dataToSend = { 
+                        type: 'test',
+                        message: '测试消息',
+                        timestamp: timestamp
+                    };
+            }
+            
+            // 发送消息
+            socket.emit(eventType, dataToSend);
+            
+            // 添加到消息显示
+            addMessage(eventType, dataToSend, true);
+        }
+        
+        // 事件监听器
+        connectBtn.addEventListener('click', connectToServer);
+        disconnectBtn.addEventListener('click', disconnectFromServer);
+        sendBtn.addEventListener('click', sendMessage);
+        clearBtn.addEventListener('click', clearMessages);
+        
+        // API测试按钮事件
+        document.querySelectorAll('.api-test-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const type = this.getAttribute('data-type');
+                sendApiTest(type);
+            });
+        });
+        
+        // 按Enter键发送消息
+        messageContentTextarea.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && event.ctrlKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // 初始化消息：显示使用说明
+        window.addEventListener('DOMContentLoaded', function() {
+            addMessage('notification', {
+                title: '使用说明',
+                message: '1. 输入服务器地址并连接\n2. 选择事件类型和输入消息内容\n3. 点击发送或使用API测试按钮\n4. 查看右侧的API参考文档',
+                level: 'info'
+            });
+        });
+    </script>
+</body>
+</html>
