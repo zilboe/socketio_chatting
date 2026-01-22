@@ -1,105 +1,100 @@
-
-use tokio::sync::{RwLock, mpsc};
 use axum::{
+    Json, Router,
     extract::{Path as AxumPath, State},
     routing::{delete, get, post},
-    Json, Router,
 };
+use tokio::sync::{RwLock, mpsc};
 
-use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr}};
-use std::sync::Arc;
-use socketioxide::{
-    extract::{Data, SocketRef, AckSender},
-    SocketIo,
-    socket::DisconnectReason
-};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use tower_http::{
-    services::ServeDir,
-    trace::TraceLayer,
+use serde_json::{Value, json};
+use socketioxide::{
+    SocketIo,
+    adapter::Adapter,
+    extract::{AckSender, Data, SocketRef},
+    socket::DisconnectReason,
 };
-use uuid::Uuid;
-use tracing_subscriber::{
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
+use std::{hash::Hash, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
 };
+use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing::info;
-struct AppState {
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use uuid::Uuid;
 
+#[derive(Clone, Debug)]
+struct AppState {
+    client: Arc<RwLock<Vec<String>>>
 }
 
-fn create_socket_handler(io: Arc<SocketIo>) -> impl Fn(SocketRef) + Send + Sync + 'static {
-    // 捕获外部的io实例
-    move |socket: SocketRef| {
-        let io = io.clone(); // 克隆Arc
-        
-        let client_id = socket.id.to_string();
-        println!("Client connected: {}", client_id);
-        
-        // 保存连接信息（可选，但不是必须的）
-        // io实例已经内部管理了连接
-        
-        socket.on("message", {
-            let io = io.clone();
-            move |socket: SocketRef, Data(data): Data<Value>| {
-                let io = io.clone();
-                async move {
-                    info!(?data, "Received event:");
-                    
-                    // 使用io实例主动向其他客户端发送消息
-                    // 例如：广播给所有客户端（除了发送者）
-                    io.broadcast()
-                        .except(vec![socket.id.to_string()])
-                        .emit("broadcast-message", &data);
-                        
-                    socket.emit("message-back", &data).ok();
-                }
-            }
-        });
-        
-        // 断开连接处理
-        socket.on_disconnect({
-            let io = io.clone();
-            async move |socket_ref: SocketRef, reason: DisconnectReason| {
-                let client_id = socket_ref.id.to_string();
-                info!("Client {} disconnected: {:?}", client_id, reason);
-                
-                // 使用io实例通知其他客户端
-                let _ = io.emit("user-left", &json!({
-                    "client_id": client_id,
-                    "reason": reason.to_string()
-                })).await;
-            }
-        });
+impl AppState {
+    fn new() -> Self {
+        AppState {
+            client: Arc::new(RwLock::new(Vec::new()))
+        }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let ip = Ipv4Addr::new(127,0,0,1);
+    let ip = Ipv4Addr::new(127, 0, 0, 1);
     let port = 9010;
+
+    let app = AppState::new();
 
     let (layer, io) = SocketIo::new_layer();
 
-    let io_arc = Arc::new(io);
+    let io_app = app.clone();
+    io.ns("/",  async move |s: SocketRef, Data::<Value>(_msg)| {
+        let app_clone = io_app.clone();
+        let client = s.id.to_string();
+        tokio::spawn( async move {
+            info!("new client connect {}", client);
+            let app_closure_clone = app_clone.clone();
+            let mut app_closure_client_list = app_closure_clone.client.write().await;
+            app_closure_client_list.push(client.clone());
+        });
 
-    let handler = create_socket_handler(io_arc.clone());
+        s.on("message", async move |s: SocketRef, Data::<Value>(msg)| {
+            let spwan_s = s.clone();
+            let spwan_msg = msg.clone();
+            tokio::spawn(async move {
+                info!("new client {} message {}", spwan_s.id.to_string(), spwan_msg.to_string());
+            });
 
-    io_arc.ns("/", handler);
+            let ack_message = msg.to_string() + "Hello World";
+            s.emit("message", &ack_message).ok();
+        });
+
+        let app_disconnect = io_app.clone();
+        s.on_disconnect(async move |s: SocketRef| {
+            let app_disconnect_closure = app_disconnect.clone();
+            let client = s.id.to_string();
+            tokio::spawn(async move {
+                let app_client_closure = app_disconnect_closure.clone();
+                let mut app_client_list = app_client_closure.client.write().await;
+                if let Some(pos) = app_client_list.iter().position(|x| *x == client) {
+                    app_client_list.remove(pos);
+                }
+            });
+        });
+    });
 
     let static_file = ServeDir::new("static");
 
-    let route = Router::new()
-    .fallback_service(static_file)
-    .layer(layer);
-
+    let route = Router::new().fallback_service(static_file).layer(layer);
+    let app_clones = app.clone();
+    tokio::spawn(async move {
+        loop {
+            println!("current socketio client is {:?}", app_clones);
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+    });
     let addr = SocketAddr::new(IpAddr::V4(ip), port);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, route.layer(TraceLayer::new_for_http()))
         .await
         .unwrap();
-
-    
 }
